@@ -1,0 +1,82 @@
+Supplementary material to the article being reviewed in International Journal of Disaster Risk Reduction as follows:
+
+Article Title: Price Model of Multiple-Trigger Flood Bond with Trigger Indices of Aggregate Loss and Maximum Number of Submerged Houses
+
+R program for Estimating ZCFB and CPFB Prices 
+# Clear the environment
+rm(list = ls())
+# Number of experiments
+M <- 200
+# Sample size M_(s,k) and L_(s,k) for all (s, k) with s=1,2,…,T and k=1,2,…,N
+N <- 3000
+# FB term (number of years)
+T <- 3
+# Threshold value for aggregate loss
+uL <- 184
+# Threshold value for maximum number of submerged houses
+uM <- 11711
+# Matrix of probability that M_s≤μ_M and L_s≤μ_L
+P <- matrix(0, nrow = M, ncol = T)
+# Vector of probability that M_T>μ_M and L_T>μ_L
+S <- rep(0, M)
+# CPFB vector (Cumulative Present Value of Annual Coupon)
+Vc <- rep(0, M)
+# ZCFB vector (Zero-Coupon Flood Bond)
+V <- rep(0, M)
+# Matrix of expected present value of annual coupons for years 1 to T
+C <- matrix(0, nrow = M, ncol = T)
+# Redemption value
+R <- 1
+# Annual coupon
+c <- 0.1
+# Proportion of redemption value 
+zeta <- 0.5
+# Proportion of coupon
+eta <- 0
+
+for (j in 1:M) {
+  # Generating annual interest rates for years 1 to T
+  r <- rinvgauss(T, mean = 0.0923, shape = 0.2787)
+  # Calculating the discount factor for years 1 to T
+  B <- exp(-cumsum(r))
+  # Matrix of aggregate losses and maximum number of submerged houses for years 1 to T in the j-th simulation
+  LY <- matrix(NA, nrow = N, ncol = T)
+  MX <- matrix(NA, nrow = N, ncol = T)
+  
+  for (s in 1:T) {
+    for (k in 1:N) {
+      # Flood frequency in the s-th year
+      Ns <- rpois(1, 19.875)
+      # Flood losses and number of submerged houses in the s-th year
+      Y <- rgamma(Ns, shape = 0.62549, scale = 4.1955)
+      X <- rgeom(Ns, prob = 4.7771e-4)
+      
+      if (s == 1) {
+        # k-th sample of aggregate losses and maximum number of submerged houses in the first year in the j-th simulation
+        LY[k, s] <- sum(Y)
+        MX[k, s] <- max(X)
+      } else {
+        # k-th sample of aggregate losses and maximum number of submerged houses in the s-th year in the j-th simulation
+        LY[k, s] <- LY[k, s - 1] + sum(Y)
+        MX[k, s] <- max(MX[k, s - 1], X)
+      }
+    }
+    
+    # Computing the joint distribution of aggregate loss and maximum submerged houses up to the s-th year in the j-th simulation
+    P[j, s] <- sum(LY[, s] <= uL & MX[, s] <= uM) / N
+    # Calculating the expected present value of the annual coupon in the s-th year in the j-th simulation
+    C[j, s] <- c * (P[j, s] * (1 - eta) + eta) * B[s]
+  }
+  
+  # Computing the joint survival distribution of aggregate loss and maximum number of submerged houses in the T-th year in the j-th simulation
+  S[j] <- sum(LY[, T] > uL & MX[, T] > uM) / N
+  # Calculating the expected present value of the redemption value in the T-th year in the j-th simulation
+  R[j] <- (1 - S[j] * (1 - zeta)) * B[T]
+  # Calculating the expected value of T-year ZCFB and CPFB prices in the j-th simulation
+  V[j] <- R[j]
+  Vc[j] <- sum(C[j, 1:T]) + V[j]
+}
+
+# Estimated ZCFB and CPFB prices
+ZCFBprice <- mean(V)
+CPFBprice <- mean(Vc)
